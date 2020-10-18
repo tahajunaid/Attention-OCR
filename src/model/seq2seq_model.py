@@ -84,22 +84,34 @@ class Seq2SeqModel(object):
         self.encoder_masks = encoder_masks
 
         # Create the internal multi-layer cell for our RNN.
-        single_cell = tf.contrib.rnn.core_rnn_cell.BasicLSTMCell(attn_num_hidden, forget_bias=0.0, state_is_tuple=False)
+        #single_cell = tf.contrib.rnn.core_rnn_cell.BasicLSTMCell(attn_num_hidden, forget_bias=0.0, state_is_tuple=False)
+        basic_cell = tf.contrib.rnn.DropoutWrapper( tf.contrib.rnn.BasicLSTMCell(attn_num_hidden, forget_bias=0.0, state_is_tuple=False))
+        # stack cells together : n layered model
+        single_cell = tf.contrib.rnn.MultiRNNCell([basic_cell] * attn_num_layers, state_is_tuple=False)
         if use_gru:
             print("using GRU CELL in decoder")
             single_cell = tf.contrib.rnn.core_rnn_cell.GRUCell(attn_num_hidden)
         cell = single_cell
 
         if attn_num_layers > 1:
-            cell = tf.contrib.rnn.core_rnn_cell.MultiRNNCell([single_cell] * attn_num_layers, state_is_tuple=False)
+            #cell = tf.contrib.rnn.rnn_cell.MultiRNNCell([single_cell] * attn_num_layers, state_is_tuple=False)
+            util_cell = tf.contrib.rnn.DropoutWrapper( tf.contrib.rnn.BasicLSTMCell(attn_num_hidden, forget_bias=0.0, state_is_tuple=False))
+        # stack cells together : n layered model
+            cell = tf.contrib.rnn.MultiRNNCell([util_cell] * attn_num_layers, state_is_tuple=False)
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(lstm_inputs, decoder_inputs, seq_length, do_decode):
 
             num_hidden = attn_num_layers * attn_num_hidden
-            lstm_fw_cell = tf.contrib.rnn.core_rnn_cell.BasicLSTMCell(num_hidden, forget_bias=0.0, state_is_tuple=False)
+            #lstm_fw_cell = tf.contrib.rnn.core_rnn_cell.BasicLSTMCell(num_hidden, forget_bias=0.0, state_is_tuple=False)
             # Backward direction cell
-            lstm_bw_cell = tf.contrib.rnn.core_rnn_cell.BasicLSTMCell(num_hidden, forget_bias=0.0, state_is_tuple=False)
+            util2_cell = tf.contrib.rnn.DropoutWrapper( tf.contrib.rnn.BasicLSTMCell(num_hidden, forget_bias=0.0, state_is_tuple=False))
+        # stack cells together : n layered model
+            lstm_fw_cell = tf.contrib.rnn.MultiRNNCell([util2_cell] * num_hidden, state_is_tuple=False)
+            #lstm_bw_cell = tf.contrib.rnn.core_rnn_cell.BasicLSTMCell(num_hidden, forget_bias=0.0, state_is_tuple=False)
+            util3_cell = tf.contrib.rnn.DropoutWrapper( tf.contrib.rnn.BasicLSTMCell(num_hidden, forget_bias=0.0, state_is_tuple=False))
+        # stack cells together : n layered model
+            lstm_bw_cell = tf.contrib.rnn.MultiRNNCell([util3_cell] * num_hidden, state_is_tuple=False)
 
             pre_encoder_inputs, output_state_fw, output_state_bw = tf.contrib.rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, lstm_inputs,
                 initial_state_fw=None, initial_state_bw=None,
